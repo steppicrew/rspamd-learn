@@ -18,9 +18,10 @@ def get_imap(config: ConfigParser):
     )
 
 
-def get_mails(imap: IMAP, db: DB, folders: set[str], search_filter: str | None):
+def get_mails(config: ConfigParser, db: DB, folders: set[str], search_filter: str | None):
     for folder in folders:
         print("Readin folder", folder)
+        imap = get_imap(config)
         for mail in imap.get_mails(folder, search_filter):
             mail_sha = sha256(mail).hexdigest()
             try:
@@ -74,13 +75,13 @@ def main(config_file: str):
 
     for ham, spam in zip(
         get_mails(
-            imap=get_imap(config),
+            config=config,
             db=db,
             folders=ham_folders,
             search_filter=search_filter,
         ),
         get_mails(
-            imap=get_imap(config),
+            config=config,
             db=db,
             folders=spam_folders,
             search_filter=search_filter
