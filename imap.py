@@ -37,7 +37,7 @@ class IMAP:
         def parse_folders(folders: list[bytes]) -> list[str]:
             return [
                 re.sub(
-                    pattern=r'^\(\S+\) "[^"]+" (?:(?:"(.*)")|(\S+))$',
+                    pattern=r'^\([\)]+\) "[^"]+" (?:(?:"(.*)")|(\S+))$',
                     repl="\\1\\2",
                     string=folder.decode(encoding="UTF-8").strip()
                 )
