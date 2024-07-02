@@ -58,9 +58,10 @@ class IMAP:
             result, data = self.imap.search(
                 None, 'ALL' if search_filter is None else search_filter
             )
-        except Exception as e:
+        except Exception as e:  # pylint:disable=[broad-exception-caught]
             print(f"Error reading mails in folder '{folder}'", e)
-            raise e
+            return
+            # raise e
 
         if result != "OK":
             raise RuntimeError("Error getting mails for folder", folder, data)
