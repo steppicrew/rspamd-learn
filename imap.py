@@ -53,7 +53,7 @@ class IMAP:
         return parse_folders(data)  # type:ignore
 
     def get_mails(self, folder: str, search_filter: str | None = None) -> Generator[bytes, None, None]:
-        self.imap.select(folder)
+        self.imap.select(f'"{folder}"')
         result, data = self.imap.search(
             None, 'ALL' if search_filter is None else search_filter)
         if result != "OK":
