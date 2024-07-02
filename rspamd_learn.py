@@ -45,14 +45,14 @@ def main(config_file: str):
 
     folders = imap.get_folders("")
 
-    re_spam = config.get("DEFAULT", "SPAM_FOLDERS") + r'$'
+    re_spam = r'(?:' + config.get("DEFAULT", "SPAM_FOLDERS") + r')$'
     spam_folders = set(
         folder
         for folder in folders
         if re.search(re_spam, folder, re.IGNORECASE)
     )
 
-    re_ignore = config.get("DEFAULT", "IGNORE_FOLDERS") + r'$'
+    re_ignore = r'(?:' + config.get("DEFAULT", "IGNORE_FOLDERS") + r')$'
     ham_folders = set(
         folder
         for folder in folders

@@ -54,8 +54,14 @@ class IMAP:
 
     def get_mails(self, folder: str, search_filter: str | None = None) -> Generator[bytes, None, None]:
         self.imap.select(f'"{folder}"')
-        result, data = self.imap.search(
-            None, 'ALL' if search_filter is None else search_filter)
+        try:
+            result, data = self.imap.search(
+                None, 'ALL' if search_filter is None else search_filter
+            )
+        except Exception as e:
+            print(f"Error reading mails in folder '{folder}'", e)
+            raise e
+
         if result != "OK":
             raise RuntimeError("Error getting mails for folder", folder, data)
 
