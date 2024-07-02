@@ -19,8 +19,11 @@ def get_imap(config: ConfigParser):
 
 
 def get_mails(config: ConfigParser, db: DB, folders: set[str], search_filter: str | None):
+    imap: IMAP | None = None
     for folder in folders:
         print("Readin folder", folder)
+        if imap is not None:
+            del imap
         imap = get_imap(config)
         for mail in imap.get_mails(folder, search_filter):
             mail_sha = sha256(mail).hexdigest()
