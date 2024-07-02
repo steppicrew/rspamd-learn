@@ -73,8 +73,8 @@ def main(config_file: str):
     search_filter = f'SINCE "{one_month_ago}"'
     # search_filter = "DELETED"
 
-    print("ham_folders", ham_folders)
-    print("spam_folders", spam_folders)
+    # print("ham_folders", ham_folders)
+    # print("spam_folders", spam_folders)
 
     for ham, spam in zip(
         get_mails(
