@@ -1,0 +1,18 @@
+[DEFAULT]
+MODE = imap
+SEEN_DB = seen.db
+SPAM_FOLDERS = (spam|junk)
+IGNORE_FOLDERS = (inbox|sent|gesendete objekte)
+LAST_DAYS = 60
+
+
+[IMAP]
+HOST = hostname
+PORT = 993
+SECURITY = SSL
+USER = username
+PASSWORD = password
+
+
+[RSPAMD]
+HOST = hostname
