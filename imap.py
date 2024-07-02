@@ -66,4 +66,5 @@ class IMAP:
             if result == "OK":
                 yield data[0][1]  # type:ignore
 
-        self.imap.close()
+        #
+        # self.imap.close()

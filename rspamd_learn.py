@@ -20,11 +20,18 @@ def get_imap(config: ConfigParser):
 
 def get_mails(imap: IMAP, db: DB, folders: set[str], search_filter: str | None):
     for folder in folders:
+        print("Readin folder", folder)
         for mail in imap.get_mails(folder, search_filter):
             mail_sha = sha256(mail).hexdigest()
-            if not db.has(mail_sha):
-                yield mail
-                db.add(mail_sha)
+            try:
+                if not db.has(mail_sha):
+                    yield mail
+                    try:
+                        db.add(mail_sha)
+                    except:  # pylint:disable=[bare-except]
+                        pass
+            except:  # pylint:disable=[bare-except]
+                pass
 
 
 def main(config_file: str):
@@ -61,6 +68,9 @@ def main(config_file: str):
     ).strftime('%d-%b-%Y')
     search_filter = f'SINCE "{one_month_ago}"'
     # search_filter = "DELETED"
+
+    print("ham_folders", ham_folders)
+    print("spam_folders", spam_folders)
 
     for ham, spam in zip(
         get_mails(
