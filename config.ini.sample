@@ -1,9 +1,25 @@
 [DEFAULT]
 MODE = imap
+
+# The SQLite file to store trained header hashes in
 SEEN_DB = seen.db
+
+# Matching folders are used for spam learn
 SPAM_FOLDERS = (spam|junk)
+
+# Matching folders (and spam folders) are ignored as ham
 IGNORE_FOLDERS = (inbox|sent|gesendete objekte)
+
+# Only train on mails that old
 LAST_DAYS = 60
+
+VERBOSITY = 1
+
+# 1: Write learned messages to db
+WRITE_TO_DB = 0
+
+# 0: Do not train rspamd
+TRAIN_RSPAMD = 0
 
 
 [IMAP]

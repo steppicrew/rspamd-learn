@@ -2,13 +2,24 @@ import re
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from hashlib import sha256
+from typing import Generator, Literal, Union
 
-from db import DB
-from imap import IMAP
-from rspam import RSpam
+from lib.db import DB
+from lib.imap import IMAP
+from lib.rspam import RSpam
+
+MailStatusType = Union[Literal["S"], Literal["H"]]
 
 
-def get_imap(config: ConfigParser):
+def get_verbosity(config: ConfigParser):
+    return config.getint(
+        section="DEFAULT",
+        option="VERBOSITY",
+        fallback=0,
+    )
+
+
+def get_imap(config: ConfigParser) -> IMAP:
     return IMAP(
         host=config.get("IMAP", "HOST"),
         username=config.get("IMAP", "USER"),
@@ -18,60 +29,131 @@ def get_imap(config: ConfigParser):
     )
 
 
-def get_mails(config: ConfigParser, db: DB, folders: set[str], search_filter: str | None):
-    imap: IMAP | None = None
-    for folder in folders:
-        try:
-            imap = get_imap(config)
-            for mail in imap.get_mails(folder, search_filter):
-                mail_sha = sha256(mail).hexdigest()
-                try:
-                    if not db.has(mail_sha):
-                        yield mail
-                        try:
-                            db.add(mail_sha)
-                        except:  # pylint:disable=[bare-except]
-                            pass
-                except:  # pylint:disable=[bare-except]
-                    pass
-        except:  # pylint:disable=[bare-except]
-            pass
+def get_mails(config: ConfigParser, db: DB, folders: set[str], mail_status: MailStatusType, imap_search_filter: str | None) -> Generator[tuple[bool | None, bytes], None, None]:
+
+    update_db = config.getboolean(
+        section="DEFAULT",
+        option="WRITE_TO_DB",
+        fallback=True,
+    )
+    verbosity = get_verbosity(config)
+
+    def search_filter(flags: bytes, mail_header: bytes) -> tuple[None | bool, str]:
+        mail_sha = sha256(mail_header).hexdigest()
+        old_status = db.get(mail_sha)
+        if old_status is None:
+            return (True, mail_sha)
+        if old_status == mail_status:
+            return (False, mail_sha)
+
+        if b'\\Deleted' in flags:
+            print(mail_sha, old_status, mail_status)
+            print(flags)
+        return (None, mail_sha)
+
+    imap: IMAP = get_imap(config)
+    try:
+        for folder in folders:
+            count = 0
+            try:
+                for ((filter_result, mail_sha), mail_body) in imap.get_mails(folder, imap_search_filter=imap_search_filter, search_filter=search_filter):
+                    if verbosity and count == 0:
+                        print(f"Start scanning folder {folder} {mail_status}")
+
+                    count += 1
+                    try:
+                        if verbosity > 1:
+                            print(
+                                f"Yielding mail {mail_sha} as {mail_status} (Filter result: {filter_result})"
+                            )
+
+                        yield (filter_result, mail_body)
+
+                        if update_db:
+                            try:
+                                db.add(mail_sha, mail_status)
+                            except Exception as exception:  # pylint:disable=[broad-exception-caught]
+                                print("Error insering mail into db",
+                                      repr(exception))
+
+                    except Exception as exception:  # pylint:disable=[broad-exception-caught]
+                        print("Error during yield", repr(exception))
+
+            except Exception as exception:  # pylint:disable=[broad-exception-caught]
+                print(
+                    f"Error fetching mails ({folder} as {mail_status})",
+                    repr(exception)
+                )
+                raise (exception)
+
+            if verbosity and count:
+                print(f"Ended scanning folder {folder} {mail_status}: {count}")
+    finally:
+        imap.logout()
 
 
 def main(config_file: str):
 
     config = ConfigParser()
-    config.read(config_file)
+    config.read(filenames=config_file)
 
-    imap = get_imap(config)
+    verbosity = get_verbosity(config)
 
-    db = DB(config.get("DEFAULT", "SEEN_DB"))
+    imap = get_imap(config=config)
+
+    db = DB(db_file=config.get(section="DEFAULT", option="SEEN_DB"))
 
     folders = imap.get_folders("")
 
-    re_spam = r'(?:' + config.get("DEFAULT", "SPAM_FOLDERS") + r')$'
+    re_spam = r'(?:' + config.get(
+        section="DEFAULT",
+        option="SPAM_FOLDERS",
+        fallback=r'(spam|junk)'  # default spam folders
+    ) + r')$'
     spam_folders = set(
         folder
         for folder in folders
         if re.search(re_spam, folder, re.IGNORECASE)
     )
 
-    re_ignore = r'(?:' + config.get("DEFAULT", "IGNORE_FOLDERS") + r')$'
+    re_ignore = r'(?:' + config.get(
+        section="DEFAULT",
+        option="IGNORE_FOLDERS",
+        fallback=r'(inbox|sent)',  # ignore inbox by default
+    ) + r')$'
     ham_folders = set(
         folder
         for folder in folders
         if folder not in spam_folders and not re.search(re_ignore, folder, re.IGNORECASE)
     )
 
-    rspam = RSpam(host=config.get("RSPAMD", "HOST"))
+    if verbosity > 1:
+        print(f"Ham folders: {ham_folders}")
+        print(f"Spam folders: {spam_folders}")
 
-    last_days = int(config.get("DEFAULT", "LAST_DAYS"))
+    rspam = RSpam(
+        host=config.get("RSPAMD", "HOST"),
+        do_train=config.getboolean(
+            section="RSPAMD",
+            option="TRAIN_RSPAMD",
+            fallback=True,
+        ),
+    )
 
-    one_month_ago = (
-        datetime.now() - timedelta(days=last_days)
-    ).strftime('%d-%b-%Y')
-    search_filter = f'SINCE "{one_month_ago}"'
-    # search_filter = "DELETED"
+    last_days = config.getint(
+        section="DEFAULT",
+        option="LAST_DAYS",
+        fallback=0,
+    )
+
+    search_filter_list: list[str] = ["(NOT DELETED)"]
+    if last_days:
+        max_age = (
+            datetime.now() - timedelta(days=last_days)
+        ).strftime('%d-%b-%Y')
+        search_filter_list.append(f'SINCE "{max_age}"')
+    search_filter = f"({' '.join(search_filter_list)})"
+    print(search_filter)
 
     # print("ham_folders", ham_folders)
     # print("spam_folders", spam_folders)
@@ -81,17 +163,25 @@ def main(config_file: str):
             config=config,
             db=db,
             folders=ham_folders,
-            search_filter=search_filter,
+            mail_status="H",
+            imap_search_filter=search_filter,
         ),
         get_mails(
             config=config,
             db=db,
             folders=spam_folders,
-            search_filter=search_filter
+            mail_status="S",
+            imap_search_filter=search_filter
         )
     ):
-        rspam.learn_ham(ham)
-        rspam.learn_spam(spam)
+        rspam.learn_ham(
+            mail=ham[1],
+            relearn=ham[0] is None,
+        )
+        rspam.learn_spam(
+            mail=spam[1],
+            relearn=spam[0] is None,
+        )
 
 
 if __name__ == "__main__":

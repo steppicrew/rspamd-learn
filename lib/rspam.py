@@ -2,8 +2,9 @@ from subprocess import run
 
 
 class RSpam:
-    def __init__(self, host: str):
+    def __init__(self, host: str, do_train: bool = True):
         self.host = host
+        self.do_learn = do_train
 
     def _run(self, *params: str, stdin: bytes | None = None, file: str | None = None):
         assert stdin is not None or file is not None
@@ -22,8 +23,14 @@ class RSpam:
         print("STDERR", result.stderr)
         return result.returncode
 
-    def learn_spam(self, mail: bytes):
-        return self._run("learn_spam", stdin=mail)
+    def _learn(self, cmd: str, mail: bytes, relearn: bool = False):
+        if self.do_learn:
+            return self._run(cmd, *(('--header', 'Learn-Type: bulk') if relearn else ()), stdin=mail)
 
-    def learn_ham(self, mail: bytes):
-        return self._run("learn_ham", stdin=mail)
+        return 0
+
+    def learn_spam(self, mail: bytes, relearn: bool = False):
+        return self._learn("learn_spam", mail, relearn)
+
+    def learn_ham(self, mail: bytes, relearn: bool = False):
+        return self._learn("learn_ham", mail, relearn)
