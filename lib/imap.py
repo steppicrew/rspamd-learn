@@ -1,7 +1,7 @@
 import imaplib
 import re
 import ssl
-from typing import Callable, Generator, Literal
+from typing import Callable, Generator, Iterable, Literal
 
 TypeSecurity = Literal["SSL", "TLS"]
 
@@ -95,7 +95,9 @@ class IMAP:
         if result == 'OK' and isinstance(mail_data[0], tuple):
             return mail_data[0]  # type:ignore
 
-    def get_mails(self, folder: str, imap_search_filter: str | None = None, search_filter: Callable[[bytes, bytes], tuple[bool | None, str]] | None = None) -> Generator[tuple[tuple[bool | None, str], bytes], None, None]:
+    def get_mails(self, folder: str, imap_search_filter: Iterable[str] | None = None, search_filter: Callable[[bytes, bytes], tuple[bool | None, str]] | None = None, header_only: bool = False) -> Generator[tuple[tuple[bool | None, str], bytes], None, None]:
+        if not imap_search_filter:
+            imap_search_filter = ('ALL')
         self.select(f'"{folder}"')
         if not self.selected:
             raise RuntimeError(f"Folder {folder} could not be selected")
@@ -103,9 +105,7 @@ class IMAP:
         try:
             mail_header_result, data = self.imap.search(
                 None,
-                'ALL'
-                if imap_search_filter is None
-                else imap_search_filter
+                *imap_search_filter
             )
         except Exception as e:  # pylint:disable=[broad-exception-caught]
             print(f"Error reading mails in folder '{folder}'", repr(e))
@@ -121,7 +121,15 @@ class IMAP:
             if not self.selected:
                 raise RuntimeError(f"Folder {folder} is not selected")
 
-            if search_filter is not None:
+            if header_only:
+                header = self.get_mail(mail_id=mail_id, header_only=True)
+                if header is None:
+                    continue
+
+                yield ((True, header[0].decode("UTF-8")), header[1])
+                continue
+
+            elif search_filter is not None:
                 header = self.get_mail(mail_id=mail_id, header_only=True)
                 if header is None:
                     continue

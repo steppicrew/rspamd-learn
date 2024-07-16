@@ -2,7 +2,7 @@ import re
 from configparser import ConfigParser
 from datetime import datetime, timedelta
 from hashlib import sha256
-from typing import Generator, Literal, Union
+from typing import Generator, Iterable, Literal, Union
 
 from lib.db import DB
 from lib.imap import IMAP
@@ -29,7 +29,7 @@ def get_imap(config: ConfigParser) -> IMAP:
     )
 
 
-def get_mails(config: ConfigParser, db: DB, folders: set[str], mail_status: MailStatusType, imap_search_filter: str | None) -> Generator[tuple[bool | None, bytes], None, None]:
+def get_mails(config: ConfigParser, db: DB, folders: set[str], mail_status: MailStatusType, imap_search_filter: Iterable[str] | None) -> Generator[tuple[bool | None, bytes], None, None]:
 
     update_db = config.getboolean(
         section="DEFAULT",
@@ -146,18 +146,19 @@ def main(config_file: str):
         fallback=0,
     )
 
-    search_filter_list: list[str] = ["(NOT DELETED)"]
+    search_filter: list[str] = ["(NOT DELETED)"]
     if last_days:
         max_age = (
             datetime.now() - timedelta(days=last_days)
         ).strftime('%d-%b-%Y')
-        search_filter_list.append(f'SINCE "{max_age}"')
-    search_filter = f"({' '.join(search_filter_list)})"
-    print(search_filter)
+        search_filter.extend(('SINCE', max_age))
+    # print(search_filter)
 
-    # print("ham_folders", ham_folders)
-    # print("spam_folders", spam_folders)
+    if verbosity >= 2:
+        print("ham_folders", ham_folders)
+        print("spam_folders", spam_folders)
 
+    count = 0
     for ham, spam in zip(
         get_mails(
             config=config,
@@ -182,6 +183,8 @@ def main(config_file: str):
             mail=spam[1],
             relearn=spam[0] is None,
         )
+        count += 1
+    print(f"{count} messages learned")
 
 
 if __name__ == "__main__":
