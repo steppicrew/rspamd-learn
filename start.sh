@@ -9,5 +9,5 @@ source .venv/bin/activate
 
 pip3 install -r requirements.txt
 
-python3 rspamd_learn.py
+python3 -u rspamd_learn.py
 
