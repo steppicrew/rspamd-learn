@@ -158,33 +158,38 @@ def main(config_file: str):
         print("ham_folders", ham_folders)
         print("spam_folders", spam_folders)
 
-    count = 0
-    for ham, spam in zip(
-        get_mails(
-            config=config,
-            db=db,
-            folders=ham_folders,
-            mail_status="H",
-            imap_search_filter=search_filter,
-        ),
-        get_mails(
-            config=config,
-            db=db,
-            folders=spam_folders,
-            mail_status="S",
-            imap_search_filter=search_filter
-        )
+    spam_count = 0
+    for spam in get_mails(
+        config=config,
+        db=db,
+        folders=spam_folders,
+        mail_status="S",
+        imap_search_filter=search_filter
     ):
-        rspam.learn_ham(
-            mail=ham[1],
-            relearn=ham[0] is None,
-        )
-        rspam.learn_spam(
+        if rspam.learn_spam(
             mail=spam[1],
             relearn=spam[0] is None,
-        )
-        count += 1
-    print(f"{count} messages learned")
+        ):
+            spam_count += 1
+
+    ham_count = 0
+    for ham in get_mails(
+        config=config,
+        db=db,
+        folders=ham_folders,
+        mail_status="H",
+        imap_search_filter=search_filter
+    ):
+        if rspam.learn_ham(
+            mail=ham[1],
+            relearn=ham[0] is None,
+        ):
+            ham_count += 1
+            if ham_count > spam_count * 2:
+                print("Cancelling ham learn...")
+                break
+
+    print(f"{ham_count} ham messages learned, {spam_count} spam messages learned")
 
 
 if __name__ == "__main__":

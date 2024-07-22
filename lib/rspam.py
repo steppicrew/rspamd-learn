@@ -19,18 +19,40 @@ class RSpam:
             capture_output=True,
             check=False,
         )
-        print("STDOUT", result.stdout)
-        print("STDERR", result.stderr)
-        return result.returncode
+        return result.returncode, result.stdout.decode("UTF-8"), result.stderr.decode("UTF-8")
 
-    def _learn(self, cmd: str, mail: bytes, relearn: bool = False):
+    def _learn(self, cmd: str, mail: bytes, relearn: bool = False) -> bool:
         if self.do_learn:
-            return self._run(cmd, *(('--header', 'Learn-Type: bulk') if relearn else ()), stdin=mail)
+            returncode, stdout, _stderr = self._run(
+                cmd, *(('--header', 'Learn-Type: bulk') if relearn else ()), stdin=mail)
+            if returncode == 0 and stdout.find("\nsuccess = true;") >= 0:
+                return True
+            return False
 
-        return 0
+        return True
 
     def learn_spam(self, mail: bytes, relearn: bool = False):
+        """
+        Learn message as SPAM
+
+        Args:
+            mail (bytes): Message to learn
+            relearn (bool, optional): Relearn this message. Defaults to False.
+
+        Returns:
+            bool: successfully learned
+        """
         return self._learn("learn_spam", mail, relearn)
 
     def learn_ham(self, mail: bytes, relearn: bool = False):
+        """
+        Learn message as HAM
+
+        Args:
+            mail (bytes): Message to learn
+            relearn (bool, optional): Relearn this message. Defaults to False.
+
+        Returns:
+            bool: successfully learned
+        """
         return self._learn("learn_ham", mail, relearn)
